@@ -228,6 +228,54 @@ const quit = () => {
 };
 
 
+//function to run the application
+const run = () => {
+    inquirer.prompt(input).then(response => {
+        switch(response.home) {
+            case 'View All Employees':
+                viewEmployees();
+                run();
+                break;
+            case 'View All Roles':
+                viewRoles();
+                run();
+                break;
+            case 'View All Departments':
+                viewDepartments();
+                run();
+                break;
+            case 'Add Employee':
+                addEmployee();
+                run();
+                break;
+            case 'Add Role':
+                addRole();
+                run();
+                break;
+            case 'Add Department':
+                addDepartment();
+                run();
+                break;
+            case 'Update Employee Role':
+                updateEmployeeRole();
+                run();
+                break;
+            case 'Quit':
+                quit();
+                break;
+        }
+    });
+};
+
+run();
+
+module.exports = sequelize;
+module.exports = Employee;
+module.exports = Role;
+module.exports = Manager;
+
+
+
 
 
 
