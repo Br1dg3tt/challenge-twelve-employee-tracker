@@ -1,16 +1,18 @@
 // importing required packages
 const inquirer = require('inquirer');
-const mysql = require('mysql2');
-const db = require('./db/connection');
-const consoleTable = require('console.table');
+// const mysql = require('mysql2');
+// const db = require('./db/connection');
+// const consoleTable = require('console.table');
+const Sequelize = require('sequelize');
+const DataType = Sequelize.DataTypes;
 
 //importing dotenv package
 require('dotenv').config();
 
 //connecting to the database
 const sequelize = new Sequelize(process.env.DB_NAME, process.env.DB_USER, process.env.DB_PW, {
-    host: 'localhost',
-    dialect: 'postgres'
+   host: 'localhost',
+   dialect: 'postgres'
     });
 
     const Employee = sequelize.define('Employee', {
@@ -30,7 +32,7 @@ const sequelize = new Sequelize(process.env.DB_NAME, process.env.DB_USER, proces
         },
         manager_id: {
             type: DataType.INTEGER
-        }
+        },
         tableName: 'employees'
     });
 
@@ -48,7 +50,7 @@ const sequelize = new Sequelize(process.env.DB_NAME, process.env.DB_USER, proces
         },
         department_id: {
             type: DataType.INTEGER
-        }
+        },
         tableName: 'roles'
     });
 
@@ -63,10 +65,10 @@ const sequelize = new Sequelize(process.env.DB_NAME, process.env.DB_USER, proces
         },
         last_name: {
             type: DataType.STRING
-        }
+        },
         department_id: {
             type: DataType.INTEGER
-        }
+        },
         tableName: 'managers'
     });
 
@@ -78,14 +80,18 @@ const sequelize = new Sequelize(process.env.DB_NAME, process.env.DB_USER, proces
         },
         name: {
             type: DataType.STRING
-        }
+        },
         tableName: 'departments'
     });
 
-Employee.connectsTo(Role, {foreignKey: 'role_id', as: 'role'});
-Employee.connectsTo(Manager, {foreignKey: 'manager_id', as: 'manager'});
-Role.connectsTo(Department, {foreignKey: 'department_id', as: 'department'});
-Manager.connectsTo(Department, {foreignKey: 'department_id', as: 'department'});
+Employee.hasOne(Role, {foreignKey: 'role_id', as: 'role'});
+Role.belongsTo(Employee, {foreignKey: 'role_id', as: 'role'});
+
+Employee.belongsTo(Manager, {foreignKey: 'manager_id', as: 'manager'});
+Manager.hasMany(Employee, {foreignKey: 'manager_id', as: 'manager'});
+
+Manager.belongsTo(Department, {foreignKey: 'department_id', as: 'department'});
+Department.hasOne(Manager, {foreignKey: 'department_id', as: 'department'});
 
 //creating the tables
 const input = [
