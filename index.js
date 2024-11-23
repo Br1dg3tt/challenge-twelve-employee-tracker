@@ -1,287 +1,185 @@
-// importing required packages
-const inquirer = require('inquirer');
-// const mysql = require('mysql2');
-// const db = require('./db/connection');
-// const consoleTable = require('console.table');
-const Sequelize = require('sequelize');
-const DataType = Sequelize.DataTypes;
+const inquirer = require("inquirer");
+const { Pool } = require("pg");
 
-//importing dotenv package
-require('dotenv').config();
+const dbconnection = new Pool({
+  host: "localhost",
+  user: "postgres",
+  password: "1234",
+  database: "emp_manage_db",
+  port: 5434
+,
+});
 
-//connecting to the database
-const sequelize = new Sequelize(process.env.DB_NAME, process.env.DB_USER, process.env.DB_PW, {
-   host: 'localhost',
-   dialect: 'postgres'
-    });
-
-    const Employee = sequelize.define('Employee', {
-        id: {
-            type: DataType.INTEGER,
-            primaryKey: true,
-            autoIncrement: true
-        },
-        first_name: {
-            type: DataType.STRING
-        },
-        last_name: {
-            type: DataType.STRING
-        },
-        role_id: {
-            type: DataType.INTEGER
-        },
-        manager_id: {
-            type: DataType.INTEGER
-        },
-        tableName: 'employees'
-    });
-
-    const Role = sequelize.define('Role', {
-        id: {
-            type: DataType.INTEGER,
-            primaryKey: true,
-            autoIncrement: true
-        },
-        title: {
-            type: DataType.STRING
-        },
-        salary: {
-            type: DataType.DECIMAL
-        },
-        department_id: {
-            type: DataType.INTEGER
-        },
-        tableName: 'roles'
-    });
-
-    const Manager = sequelize.define('Manager', {
-        id: {
-            type: DataType.INTEGER,
-            primaryKey: true,
-            autoIncrement: true
-        },
-        first_name: {
-            type: DataType.STRING
-        },
-        last_name: {
-            type: DataType.STRING
-        },
-        department_id: {
-            type: DataType.INTEGER
-        },
-        tableName: 'managers'
-    });
-
-    const Department = sequelize.define('Department', {
-        id: {
-            type: DataType.INTEGER,
-            primaryKey: true,
-            autoIncrement: true
-        },
-        name: {
-            type: DataType.STRING
-        },
-        tableName: 'departments'
-    });
-
-Employee.hasOne(Role, {foreignKey: 'role_id', as: 'role'});
-Role.belongsTo(Employee, {foreignKey: 'role_id', as: 'role'});
-
-Employee.belongsTo(Manager, {foreignKey: 'manager_id', as: 'manager'});
-Manager.hasMany(Employee, {foreignKey: 'manager_id', as: 'manager'});
-
-Manager.belongsTo(Department, {foreignKey: 'department_id', as: 'department'});
-Department.hasOne(Manager, {foreignKey: 'department_id', as: 'department'});
-
-//creating the tables
-const input = [
+const mainMenu = async () => {
+  const { action } = await inquirer.prompt([
     {
-        type: 'list',
-        message: 'What would you like to do?',
-        name: 'home',
-        choices: ['View All Employees', 'View All Roles', 'View All Departments', 'Add Employee', 'Add Role', 'Add Department', 'Update Employee Role', 'Quit']
-    }
-]
+      type: "list",
+      name: "action",
+      message: "What would you like to do?",
+      choices: [
+        "View all departments",
+        "View all roles",
+        "View all employees",
+        "Add a department",
+        "Add a role",
+        "Add an employee",
+        "Update an employee role",
+        "Exit",
+      ],
+    },
+  ]);
 
-//function to view all employees
-const viewEmployees = () => {
-    Employee.findAll({
-        include: [
-            {
-                model: Role,
-                as: 'role'
-            },
-            {
-                model: Manager,
-                as: 'manager'
-            }
-        ]
-    }).then(employees => {
-        console.table(employees);
-    });
+  switch (action) {
+    case "View all departments":
+      return viewDepartments();
+    case "View all roles":
+      return viewRoles();
+    case "View all employees":
+      return viewEmployees();
+    case "Add a department":
+      return addDepartment();
+    case "Add a role":
+      return addRole();
+    case "Add an employee":
+      return addEmployee();
+    case "Update an employee role":
+      return updateEmployeeRole();
+    default:
+      return quit();
+  }
 };
 
-//function to view all roles
-const viewRoles = () => {
-    Role.findAll({
-        include: [
-            {
-                model: Department,
-                as: 'department'
-            }
-        ]
-    }).then(roles => {
-        console.table(roles);
-    });
+const viewDepartments = async () => {
+  const res = await dbconnection.query("SELECT * FROM departments");
+  console.table(res.rows);
+  mainMenu();
 };
 
-//function to view all departments
-const viewDepartments = () => {
-    Department.findAll().then(departments => {
-        console.table(departments);
-    });
+const viewRoles = async () => {
+  const res = await dbconnection.query(`
+        SELECT roles.id, roles.title, roles.salary, departments.name AS department
+        FROM roles
+        JOIN departments ON roles.department_id = departments.id
+    `);
+  console.table(res.rows);
+  mainMenu();
 };
 
-//function to add an employee
-const addEmployee = () => {
-    inquirer.prompt([
-        {
-            type: 'input',
-            message: 'Enter the employee\'s first name:',
-            name: 'first_name'
-        },
-        {
-            type: 'input',
-            message: 'Enter the employee\'s last name:',
-            name: 'last_name'
-        },
-        {
-            type: 'input',
-            message: 'Enter the employee\'s role ID:',
-            name: 'role_id'
-        },
-        {
-            type: 'input',
-            message: 'Enter the employee\'s manager ID:',
-            name: 'manager_id'
-        }
-    ]).then(employee => {
-        Employee.create(employee);
-    });
+const viewEmployees = async () => {
+  const res = await dbconnection.query(`
+        SELECT employees.id, employees.first_name, employees.last_name, roles.title AS job_title, 
+               departments.name AS department, roles.salary, 
+               CONCAT(manager.first_name, ' ', manager.last_name) AS manager
+        FROM employees
+        LEFT JOIN roles ON employees.role_id = roles.id
+        LEFT JOIN departments ON roles.department_id = departments.id
+        LEFT JOIN employees manager ON employees.manager_id = manager.id
+    `);
+  console.table(res.rows);
+  mainMenu();
 };
 
-//function to add a role
-const addRole = () => {
-    inquirer.prompt([
-        {
-            type: 'input',
-            message: 'Enter the role title:',
-            name: 'title'
-        },
-        {
-            type: 'input',
-            message: 'Enter the role salary:',
-            name: 'salary'
-        },
-        {
-            type: 'input',
-            message: 'Enter the role department ID:',
-            name: 'department_id'
-        }
-    ]).then(role => {
-        Role.create(role);
-    });
+const addDepartment = async () => {
+  const { name } = await inquirer.prompt([
+    { type: "input", name: "name", message: "Enter the department name:" },
+  ]);
+  await dbconnection.query("INSERT INTO departments (name) VALUES ($1)", [name]);
+  console.log("Department added!");
+  mainMenu();
 };
 
-//function to add a department
-const addDepartment = () => {
-    inquirer.prompt([
-        {
-            type: 'input',
-            message: 'Enter the department name:',
-            name: 'name'
-        }
-    ]).then(department => {
-        Department.create(department);
-    });
+const addRole = async () => {
+  const departments = await dbconnection.query("SELECT * FROM departments");
+  const { title, salary, department_id } = await inquirer.prompt([
+    { type: "input", name: "title", message: "Enter the role title:" },
+    { type: "input", name: "salary", message: "Enter the role salary:" },
+    {
+      type: "list",
+      name: "department_id",
+      message: "Select the department:",
+      choices: departments.rows.map((d) => ({ name: d.name, value: d.id })),
+    },
+  ]);
+  await dbconnection.query(
+    "INSERT INTO roles (title, salary, department_id) VALUES ($1, $2, $3)",
+    [title, salary, department_id]
+  );
+  console.log("Role added!");
+  mainMenu();
 };
 
-//function to update an employee's role
-const updateEmployeeRole = () => {
-    inquirer.prompt([
-        {
-            type: 'input',
-            message: 'Enter the employee ID:',
-            name: 'id'
-        },
-        {
-            type: 'input',
-            message: 'Enter the new role ID:',
-            name: 'role_id'
-        }
-    ]).then(employee => {
-        Employee.update(employee, {
-            where: {
-                id: employee.id
-            }
-        });
-    });
+const addEmployee = async () => {
+  const roles = await dbconnection.query("SELECT * FROM roles");
+  const employees = await dbconnection.query("SELECT * FROM employees");
+  const { first_name, last_name, role_id, manager_id } = await inquirer.prompt([
+    {
+      type: "input",
+      name: "first_name",
+      message: "Enter the employee first name:",
+    },
+    {
+      type: "input",
+      name: "last_name",
+      message: "Enter the employee last name:",
+    },
+    {
+      type: "list",
+      name: "role_id",
+      message: "Select the role:",
+      choices: roles.rows.map((r) => ({ name: r.title, value: r.id })),
+    },
+    {
+      type: "list",
+      name: "manager_id",
+      message: "Select the manager:",
+      choices: [
+        { name: "None", value: null },
+        ...employees.rows.map((e) => ({
+          name: `${e.first_name} ${e.last_name}`,
+          value: e.id,
+        })),
+      ],
+    },
+  ]);
+  await dbconnection.query(
+    "INSERT INTO employees (first_name, last_name, role_id, manager_id) VALUES ($1, $2, $3, $4)",
+    [first_name, last_name, role_id, manager_id]
+  );
+  console.log("Employee added!");
+  mainMenu();
 };
 
-//function to quit the application
-const quit = () => {
-    process.exit();
+const updateEmployeeRole = async () => {
+  const employees = await dbconnection.query("SELECT * FROM employees");
+  const roles = await dbconnection.query("SELECT * FROM roles");
+  const { employee_id, role_id } = await inquirer.prompt([
+    {
+      type: "list",
+      name: "employee_id",
+      message: "Select the employee to update:",
+      choices: employees.rows.map((e) => ({
+        name: `${e.first_name} ${e.last_name}`,
+        value: e.id,
+      })),
+    },
+    {
+      type: "list",
+      name: "role_id",
+      message: "Select the new role:",
+      choices: roles.rows.map((r) => ({ name: r.title, value: r.id })),
+    },
+  ]);
+  await dbconnection.query("UPDATE employees SET role_id = $1 WHERE id = $2", [
+    role_id,
+    employee_id,
+  ]);
+  console.log("Employee role updated!");
+  mainMenu();
 };
 
-
-//function to run the application
-const run = () => {
-    inquirer.prompt(input).then(response => {
-        switch(response.home) {
-            case 'View All Employees':
-                viewEmployees();
-                run();
-                break;
-            case 'View All Roles':
-                viewRoles();
-                run();
-                break;
-            case 'View All Departments':
-                viewDepartments();
-                run();
-                break;
-            case 'Add Employee':
-                addEmployee();
-                run();
-                break;
-            case 'Add Role':
-                addRole();
-                run();
-                break;
-            case 'Add Department':
-                addDepartment();
-                run();
-                break;
-            case 'Update Employee Role':
-                updateEmployeeRole();
-                run();
-                break;
-            case 'Quit':
-                quit();
-                break;
-        }
-    });
+const quit = async () => {
+  process.exit();
 };
 
-run();
-
-module.exports = sequelize;
-module.exports = Employee;
-module.exports = Role;
-module.exports = Manager;
-
-
-
-
-
-
+// Start the application
+mainMenu();
